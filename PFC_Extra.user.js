@@ -27,8 +27,40 @@ Changelog:
 		* Minor compatibility improvements.
 */
 
+if(window.navigator.vendor.match(/Google/)) {
+	var div = document.createElement("div");
+	div.setAttribute("onclick", "return window;");
+	unsafeWindow = div.onclick();
+}
+
 if(!unsafeWindow.pfcClient ||
-   !document.getElementById('pfc_loader')) return;
+   !document.getElementById('pfc_loader') ||
+   !document.getElementById('pfc_container')) return;
+
+if(!GM_setValue||!GM_getValue||!GM_deleteValue) {
+	if(!localStorage) {
+		alert("PFC Extra does not support this browser.");
+		return;
+	}
+
+	var serializeObject = function(obj) {
+		if(typeof obj=='number') return ''+obj; //NaN, and infinity are not covered, but, who cares.
+		else if(typeof obj=='string') return 'unescape("'+escape(obj)+'")';
+		else if(typeof obj=='boolean') return ''+obj;
+		else throw "Type can not be stored";
+	};
+
+	var GM_setValue = function(key, value) {
+		localStorage.setItem(key, serializeObject(value));
+	};
+	var GM_getValue = function(key, def) { 
+		var v = localStorage.getItem(key); 
+		return v==null?def:eval(v);
+	};
+	var GM_deleteValue = function(key) {
+		if(localStorage.getItem(key)!=null) localStorage.removeItem;
+	};
+}
 
 function __pfc_extra_hook() {
 	/*---------------\
@@ -68,7 +100,7 @@ function __pfc_extra_hook() {
 
 	var debug = true;
 	var debugprint = function(str) {
-		if(debug && console.debug) {
+		if(debug && console && console.debug) {
 			console.debug(str);
 		}
 	};
@@ -664,7 +696,11 @@ function __pfc_extra_hook() {
 					}
 				}
 
-				this.initHook();
+				try {
+					this.initHook();
+				} catch(e) {
+					alert("Client load failed:\n"+e);
+				}
 			}.bind(this)
 		});
 	};
@@ -825,10 +861,11 @@ var contains = function(arr,obj) {
     while (i--) if (arr[i] === obj) return true;
     return false;
 }
+
 var addPersist = function(n) {
 	var f="_"+window.location.hostname.replace(re_cleanName,"_")+"$"+n;
 	//var f = n;
-	var hasValue = contains(GM_listValues(),f);
+	var hasValue = GM_getValue(f,1)==GM_getValue(f,2);
 	var value = GM_getValue(f);
 	t["set"+n]=function(v) {
 		setTimeout(function() {
