@@ -4,7 +4,7 @@
 // @author         Lymia <lymiahugs@gmail.com>
 // @description    Modifies PHPFreeChat's client to add in some additional functionality
 // @license        Public Domain
-// @version        1.2.0
+// @version        1.2.1
 // @run-at         document-end
 // @include        *
 // ==/UserScript==
@@ -23,6 +23,8 @@ Commands:
 Changelog:
 	v1.2.0:
 		* First public release
+	v1.2.1:
+		* Minor compatibility improvements.
 */
 
 if(!unsafeWindow.pfcClient ||
