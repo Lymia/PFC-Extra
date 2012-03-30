@@ -72,13 +72,19 @@ function __pfc_extra_hook() {
 		}
 	};
 
-	var p=pfcClient.prototype;
-	var orig = {};
-	for(k in p) {
-		orig[k]=p[k];
+	var clone = function(hash,n) {
+		if(n==undefined) var n = {};
+		else for(k in n) delete n[k];
+
+		for(k in hash) n[k] = hash[k];
+		return n;
 	}
-	orig.sendRequestReal=orig.sendRequest;
-	orig.sendRequest=function(string,id) {
+
+	var p={};
+	var defined={};
+	var disable = clone(pfcClient.prototype);
+	disable.sendRequestReal=disable.sendRequest;
+	disable.sendRequest=function(string,id) {
 		if(!this.initDone) {
 			getElem('pfc_container').style.display='block';
 			this.initDone = true;
@@ -564,7 +570,7 @@ function __pfc_extra_hook() {
 
 		debugprint("End Init");
 	};
-	p.resetChat = function(disable) {
+	p.resetChat = function(d) {
 		var parent = getElem('pfc_container').parentNode;
 		removeElem('pfc_container');
 		addElem('div',parent,{id:'pfc_loader'},loading);
@@ -574,10 +580,10 @@ function __pfc_extra_hook() {
 
 		this.reset = true;
 
-		if(disable) {
-			pfcClient.prototype=orig;
+		if(d) {
+			clone(disable,pfcClient.prototype);
 			addElem('div',parent,{id:'pfc_container'}).style.display='none';
-		} else pfcClient.prototype=p;
+		} else clone(p,pfcClient.prototype);
 
 		pfc=new pfcClient();
 		pfc.__loading = parent;
@@ -605,19 +611,6 @@ function __pfc_extra_hook() {
 		}
 		var elem = addElem('span',this.el_handle,{id:'pfc_extra_handleMarker'},nick).style.display = 'none';
 	}
-	p.processCall = function(cmd, params) {
-		if(!this.__used_functions) this.__used_functions = {};
-		if(debug) this.__used_functions[cmd]=true;
-		var s = cmd.split('.');
-		var c = _G;
-		var f = c[s[0]];
-		for(var i=1;i<s.length;i++) {
-			var tmp = f;
-			f = f[s[i]];
-			c = tmp;
-		}
-		f.apply(c,params);
-	};
 
 	/*----------\
 	| Hook code |
@@ -647,11 +640,24 @@ function __pfc_extra_hook() {
 				if(this.__loading) {
 					addElem('div',this.__loading,{id:'pfc_container'});
 				}
-				eval(transport.responseText);
 
-				//Sometimes, the server tries to eval code that overrides handleResponse...
-				p.handleResponseReal = p.handleResponse;
-				p.handleResponse = p.handleResponseHook;
+				//Sometimes, the server tries to eval code that overrides various prototype things...
+				var fakeScope = {
+					pfcClient: {
+						prototype: {}
+					}
+				}
+				with(fakeScope) {
+					eval(transport.responseText);
+				}
+				for(k in fakeScope.pfcClient.prototype) {
+					if(defined[k]) {
+						debugprint("Warning: Server tried to override hooked method "+k+'. Denied');
+					} else {
+						debugprint("Warning: Server overrode "+k);
+						pfcClient.prototype[k] = fakeScope.pfcClient.prototype[k];
+					}
+				}
 
 				this.initHook();
 			}.bind(this)
@@ -664,9 +670,9 @@ function __pfc_extra_hook() {
 		}
 	}
 
-	p.handleResponseHook = function(cmd, resp, param) {
+	p.handleResponse_ = function(cmd, resp, param) {
 		this.handleResponsePre(cmd, resp, param); 
-		var ret = this.handleResponseReal(cmd, resp, param);
+		var ret = this.handleResponse(cmd, resp, param);
 		this.handleResponsePost(cmd, resp, param); 
 		return ret;
 	};
@@ -771,6 +777,24 @@ function __pfc_extra_hook() {
 			}.bind(this)
 		});
 	};
+	p.processCall = function(cmd, params) {
+		if(!this.__used_functions) this.__used_functions = {};
+		if(debug) this.__used_functions[cmd]=true;
+
+		if(cmd=='pfc.handleResponse') {
+			this.handleResponse_.apply(this,params);
+		} else {
+			var s = cmd.split('.');
+			var c = s.length==1?undefined:eval(s.slice(0,s.length-1).join('.'));
+			var f = eval(cmd);
+
+			f.apply(c,params);
+		}
+	};
+
+	for(k in p) defined[k] = true;
+	for(k in pfcClient.prototype) if(p[k]==undefined) p[k] = pfcClient.prototype[k];
+	clone(p,pfcClient.prototype);
 
 	debugprint('PFC Extra loaded');
 }
