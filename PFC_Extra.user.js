@@ -2,15 +2,11 @@
 // @name           PFC Extra
 // @namespace      http://lymia.x10.bz/
 // @author         Lymia <lymiahugs@gmail.com>
-// @description    Modifies PHPFreeChat's client to add in some custom functionality
+// @description    Modifies PHPFreeChat's client to add in some additional functionality
 // @license        Public Domain
 // @version        1.2.0
 // @run-at         document-end
-// @include        http://nanofate.us/chat*
-// @include        http://artonelico.isisview.org/chat*
-// @include        http://tokchat.thelostwaters.com/
-// @include        http://recovery.theworldwidewiki.com/
-// @include        http://www.phpfreechat.net/demo
+// @include        *
 // ==/UserScript==
 
 /*
@@ -28,6 +24,9 @@ Changelog:
 	v1.2.0:
 		* First public release
 */
+
+if(!unsafeWindow.pfcClient ||
+   !document.getElementById('pfc_loader')) return;
 
 function __pfc_extra_hook() {
 	/*---------------\
@@ -648,7 +647,11 @@ function __pfc_extra_hook() {
 					}
 				}
 				with(fakeScope) {
-					eval(transport.responseText);
+					try {
+						eval(transport.responseText);
+					} catch(e) {
+						alert("Client load failed:\n"+e);
+					}
 				}
 				for(k in fakeScope.pfcClient.prototype) {
 					if(defined[k]) {
@@ -663,12 +666,6 @@ function __pfc_extra_hook() {
 			}.bind(this)
 		});
 	};
-	if(typeof pfc_loadChat != "undefined") { //Hack for certain old versions? http://www.zoogaloos.com/chat.php required this.
-		window.onload = function() {
-			pfc = new pfcClient();
-			if(pfc_isready) pfc.loadChat();
-		}
-	}
 
 	p.handleResponse_ = function(cmd, resp, param) {
 		this.handleResponsePre(cmd, resp, param); 
@@ -794,6 +791,26 @@ function __pfc_extra_hook() {
 
 	for(k in p) defined[k] = true;
 	for(k in pfcClient.prototype) if(p[k]==undefined) p[k] = pfcClient.prototype[k];
+
+	/*----------------------\
+	| Older Version Patches |
+	\----------------------*/
+	if(typeof pfc_loadChat != "undefined") { //Hack for certain old versions? http://www.zoogaloos.com/chat.php required this.
+		window.onload = function() {
+			pfc = new pfcClient();
+			if(pfc_isready) pfc.loadChat();
+		}
+	}
+
+	var patch = {};
+	patch.calcDelay = function() {
+		return 2000;
+	};
+	for(k in patch) if(!p[k]) {
+		debugprint(k+' not found, patching');
+		p[k] = patch[k];
+	};
+
 	clone(p,pfcClient.prototype);
 
 	debugprint('PFC Extra loaded');
