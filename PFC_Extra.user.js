@@ -72,18 +72,13 @@ function __pfc_extra_hook() {
 	};
 	var removeElem = function(id) {
 		var element = getElem(id);
-		if(element) {
-			element.parentNode.removeChild(element);
-		} else {
-			debugprint('element '+id+' not found!');
-		}
+		if(element) element.parentNode.removeChild(element);
+		else debugprint('element '+id+' not found!');
 	};
 
 	var debug = true;
 	var debugprint = function(str) {
-		if(debug && console && console.debug) {
-			console.debug(str);
-		}
+		if(debug && console && console.debug) console.debug(str);
 	};
 
 	var clone = function(hash,n) {
@@ -389,7 +384,8 @@ function __pfc_extra_hook() {
 		this.updateRPColorList();
 		addElem('button',id,{
 			type:'button',
-			onclick:'pfc.rpNames.push("");'+
+			onclick:'if(!pfc.nickColor.checked) return;'+
+				'pfc.rpNames.push("");'+
 				'pfc.rpColors.push("");'+
 				'pfc.saveRPNick();'+
 				'pfc.updateRPNickBox();'+
@@ -397,11 +393,12 @@ function __pfc_extra_hook() {
 		},'Add Entry');
 		addElem('button',id,{
 			type:'button',
-			onclick:'if(pfc.rpNames.length==1) { alert("Cannot remove last entry"); } else {'+
+			onclick:'if(!pfc.nickColor.checked) return;'+
+				'if(pfc.rpNames.length==1) { alert("Cannot remove last entry"); } else {'+
 				'pfc.rpNames.pop();'+
 				'pfc.rpColors.pop();'+
-				'pfc.saveRPNick();'+
 				'pfc.updateRPNickBox();'+
+				'pfc.saveRPNick();'+
 				'pfc.updateRPColorList();'+
 				'}'
 		},'Remove Entry');
@@ -465,6 +462,30 @@ function __pfc_extra_hook() {
 			this.rpColor[this.rpNames[i].value]=this.rpColors[i].value;
 	}
 
+	p.addCheckbox = function(id,label,boxName,configName,def,disables,custom) {
+		if(!disables) disables = [];
+		if(!custom) custom = '';
+
+		addElem('span',id,{},label+': ');
+		this[boxName] = addElem('input', id, {
+			type: 'checkbox',
+			onchange: 'config.'+configName+'.set(pfc.useColor.checked);'+
+				  disables.map(function(f){return 'pfc.'+f+'.readOnly=!pfc.'+boxName+'.checked'}).join(';')+';'+
+			          custom
+		});
+		this[boxName].checked = config[configName].get(def);
+		eval(this[boxName].onchange);
+	}
+	p.addTextfield = function(id,label,fieldName,configName,def,disabledBy) {
+		addElem('span',id,{},label+': ');
+		this[fieldName] = addElem('input', id, {
+			type: 'text',
+			value: config[configName].get(def),
+			onchange: 'config.'+configName+'.set(pfc.'+fieldName+'.value);'
+		});
+		if(disabledBy) this[fieldName].readOnly=!this[disabledBy].checked;
+	}
+
 	p.initHook = function() {
 		debugprint("Init");
 
@@ -478,134 +499,37 @@ function __pfc_extra_hook() {
 		removeElem('pfc_bt_color_btn');
 		this.newToggleBox(function(id) {
 			this.newToggleBox(function(id) {
-				addElem('span',id,{},'Enable Text Color: ');
-				this.useColor = addElem('input', id, {
-					type: 'checkbox',
-					onchange: 'config.enableTextColor.set(pfc.useColor.checked);'+
-						  'pfc.color.readOnly=!pfc.useColor.checked;'
-				});
-				this.useColor.checked = config.enableTextColor.get(true);
-
+				this.addCheckbox(id,'Enable Text Color','useColor','enableTextColor',true,['color']);
 				addElem('br',id);
-
-				addElem('span',id,{},'Color: ');
-				this.color = addElem('input', id, {
-					type: 'text',
-					value: config.textColor.get(initColor),
-					onchange: 'config.textColor.set(pfc.color.value);'
-				});
-				this.color.readOnly=!this.useColor.checked;
+				this.addTextfield(id,'Color','color','textColor',initColor,'useColor');
 			}, id, 'Text Color');
 			this.newToggleBox(function(id) {
-				addElem('span',id,{},'Enable RP Mode: ');
-				this.enableRP = addElem('input', id, {
-					type: 'checkbox',
-					onchange: 'config.rpEnable.set(pfc.enableRP.checked);'+
-						  'pfc.rpRegex.readOnly=!pfc.enableRP.checked;'+
-						  'pfc.rpRepNick.readOnly=!pfc.enableRP.checked;'+
-						  'pfc.rpRepMsg.readOnly=!pfc.enableRP.checked;'+
-						  'pfc.rpAutoFormat.readOnly=!pfc.enableRP.checked;'
-				});
-				this.enableRP.checked = config.rpEnable.get(false);
-
+				this.addCheckbox(id,'Enable RP Mode','enableRP','rpEnable',false,['rpRegex','rpRepNick','rpRepMsg','rpAutoFormat']);
 				addElem('br',id);
-
-				addElem('span',id,{},'RP Matching Regex: ');
-				this.rpRegex = addElem('input', id, {
-					type: 'text',
-					value: config.rpRegex.get('^(([^ ]+): .*)$'),
-					onchange: 'config.rpRegex.set(pfc.rpRegex.value);'
-				});
-				this.rpRegex.readOnly=!this.enableRP.checked;
-
+				this.addTextfield(id,'RP Matching Regex','rpRegex','rpRegex','^(([^ ]+): .*)$','enableRP');
 				addElem('br',id);
-
-				addElem('span',id,{},'RP Nick Replace String: ');
-				this.rpRepNick = addElem('input', id, {
-					type: 'text',
-					value: config.rpRepNick.get('$2'),
-					onchange: 'config.rpRepNick.set(pfc.rpRepNick.value);'
-				});
-				this.rpRepNick.readOnly=!this.enableRP.checked;
-
-
+				this.addTextfield(id,'RP Nick Replace String','rpRepNick','rpRepNick','$2','enableRP');
 				addElem('br',id);
-
-				addElem('span',id,{},'RP Message Replace String: ');
-				this.rpRepMsg = addElem('input', id, {
-					type: 'text',
-					value: config.rpRepMsg.get('$1'),
-					onchange: 'config.rpRepMsg.set(pfc.rpRepMsg.value);'
-				});
-				this.rpRepMsg.readOnly=!this.enableRP.checked;
-
+				this.addTextfield(id,'RP Message Replace String','rpRepMsg','rpRepMsg','$1','enableRP');
 				addElem('br',id);
-
-				addElem('span',id,{},'Auto RP Format String: ');
-				this.rpAutoFormat = addElem('input', id, {
-					type: 'text',
-					value: config.rpAutoFormat.get('%s: %s'),
-					onchange: 'config.rpAutoFormat.set(pfc.rpAutoFormat.value);'
-				});
-				this.rpAutoFormat.readOnly=!this.enableRP.checked;
-
+				this.addTextfield(id,'Auto RP Format String','rpAutoFormat','rpAutoFormat','%s: %s','enableRP');
 				addElem('br',id);
-
-				addElem('span',id,{},'Use notice for /rpme: ');
-				this.rpmeNotice = addElem('input', id, {
-					type: 'checkbox',
-					onchange: 'config.rpmeUseNotice.set(pfc.rpmeNotice.checked);'+
-						  'pfc.rpmeFormat.readOnly=pfc.rpmeNotice.checked;'
-				});
-				this.rpmeNotice.checked = config.rpmeUseNotice.get(false);
-
+				this.addCheckbox(id,'Use /notice for /rpme','rpmeNotice','rpmeUseNotice',false,['rpmeFormat']);
 				addElem('br',id);
-
-				addElem('span',id,{},'/rpme format: ');
-				this.rpmeFormat = addElem('input', id, {
-					type: 'text',
-					value: config.rpmeFormat.get('[i]%s %s[/i]'),
-					onchange: 'config.rpmeUseFormat.set(pfc.rpmeFormat.value);'
-				});
-				this.rpmeFormat.readOnly=this.rpmeNotice.checked;
+				this.addTextfield(id,'/rpme format','rpmeFormat','rpmeFormat','[i]%s %s[/i]','rpmeNotice');
 			}, id, 'RP Settings');
 			this.newToggleBox(function(id) {
-				addElem('span',id,{},'Enable Per-Nick Color: ');
-				this.nickColor = addElem('input', id, {
-					type: 'checkbox',
-					onchange: 'config.enableRpColor.set(pfc.nickColor.checked);'+
-						  'pfc.updateRPNickBox();'
-				});
-				this.nickColor.checked = config.enableRpColor.get(true);
+				this.addCheckbox(id,'Enable Per-Nick Color','nickColor','enableRpColor',true,undefined,'pfc.updateRPNickBox();');
 
 				addElem('hr',id);
 				this.setupRPNickBox(id);
 			}, id, 'Per-Nick Color');
 			this.newToggleBox(function(id) {
-				addElem('span',id,{},'Send Smilies: ');
-				this.useSmilies = addElem('input', id, {
-					type: 'checkbox',
-					onchange: 'config.enableSmilies.set(pfc.useSmilies.checked);'
-				});
-				this.useSmilies.checked = config.enableSmilies.get(true);
-
+				this.addCheckbox(id,'Send Smilies','useSmilies','enableSmilies',true);
 				addElem('br',id);
-
-				addElem('span',id,{},'Process /me: ');
-				this.meProcess = addElem('input', id, {
-					type: 'checkbox',
-					onchange: 'config.meProcess.set(pfc.meProcess.checked);'
-				});
-				this.meProcess.checked = config.meProcess.get(false);
-
+				this.addCheckbox(id,'Process /me','meProcess','meProcess',false);
 				addElem('br',id);
-
-				addElem('span',id,{},'Use /notice for /me: ');
-				this.meNotice = addElem('input', id, {
-					type: 'checkbox',
-					onchange: 'config.meNotice.set(pfc.meNotice.checked);'
-				});
-				this.meNotice.checked = config.meNotice.get(false);
+				this.addCheckbox(id,'Use /notice for /me','meNotice','meNotice',false);
 			}, id, 'Text Options');
 
 			this.newToggleBox(function(id) {
@@ -680,10 +604,6 @@ function __pfc_extra_hook() {
 		var elem = addElem('span',this.el_handle,{id:'pfc_extra_handleMarker'},nick).style.display = 'none';
 	}
 
-	/*----------\
-	| Hook code |
-	\----------*/
-
 	p.insertSmiley = function(smiley) {
 		var w = this.el_words;
 
@@ -705,15 +625,11 @@ function __pfc_extra_hook() {
 			method: 'get',
 			parameters: {pfc_ajax: 1, f: 'loadChat'},
 			onSuccess: function(transport) {
-				if(this.__loading) {
-					addElem('div',this.__loading,{id:'pfc_container'});
-				}
+				if(this.__loading) addElem('div',this.__loading,{id:'pfc_container'});
 
 				//Sometimes, the server tries to eval code that overrides various prototype things...
 				var fakeScope = {
-					pfcClient: {
-						prototype: {}
-					}
+					pfcClient: {prototype: {}}
 				}
 				with(fakeScope) {
 					try {
@@ -722,14 +638,12 @@ function __pfc_extra_hook() {
 						alert("Client load failed:\n"+e);
 					}
 				}
-				for(k in fakeScope.pfcClient.prototype) {
-					if(defined[k]) {
-						debugprint("Warning: Server tried to override hooked method "+k+'. Denied');
-					} else {
+				for(k in fakeScope.pfcClient.prototype) 
+					if(defined[k]) debugprint("Warning: Server tried to override hooked method "+k+'. Denied');
+					else {
 						debugprint("Warning: Server overrode "+k);
 						pfcClient.prototype[k] = fakeScope.pfcClient.prototype[k];
 					}
-				}
 
 				try {
 					this.initHook();
