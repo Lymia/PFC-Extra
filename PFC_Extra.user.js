@@ -387,8 +387,8 @@ function __pfc_extra_hook() {
 			onclick:'if(!pfc.nickColor.checked) return;'+
 				'pfc.rpNames.push("");'+
 				'pfc.rpColors.push("");'+
-				'pfc.saveRPNick();'+
 				'pfc.updateRPNickBox();'+
+				'pfc.saveRPNick();'+
 				'pfc.updateRPColorList();'
 		},'Add Entry');
 		addElem('button',id,{
@@ -459,7 +459,7 @@ function __pfc_extra_hook() {
 	p.updateRPColorList = function() {
 		this.rpColor = {};
 		for(var i=0;i<this.rpNames.length;i++)
-			this.rpColor[this.rpNames[i].value]=this.rpColors[i].value;
+			this.rpColor[this.rpNames[i]]=this.rpColors[i];
 	}
 
 	p.addCheckbox = function(id,label,boxName,configName,def,disables,custom) {
