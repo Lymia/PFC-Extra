@@ -29,40 +29,19 @@ Changelog:
 		* PFC Extra now works on Chrome.
 */
 
-if(window.navigator.vendor.match(/Google/)) {
+if(typeof unsafeWindow == 'undefined' ||
+   window.navigator.vendor.match(/Google/)) { //Chrome defines unsafeWindow, but, it's the wrong one
 	var div = document.createElement("div");
 	div.setAttribute("onclick", "return window;");
 	unsafeWindow = div.onclick();
 }
 
-if(!unsafeWindow.pfcClient ||
-   !document.getElementById('pfc_loader') ||
-   !document.getElementById('pfc_container')) return;
+if((!unsafeWindow.pfcClient) ||
+   (!document.getElementById('pfc_loader')) ||
+   (!document.getElementById('pfc_container'))) return;
 
-if(!GM_setValue||!GM_getValue||!GM_deleteValue) {
-	if(!localStorage) {
-		alert("PFC Extra does not support this browser.");
-		return;
-	}
-
-	var serializeObject = function(obj) {
-		if(typeof obj=='number') return ''+obj; //NaN, and infinity are not covered, but, who cares.
-		else if(typeof obj=='string') return 'unescape("'+escape(obj)+'")';
-		else if(typeof obj=='boolean') return ''+obj;
-		else throw "Type can not be stored";
-	};
-
-	var GM_setValue = function(key, value) {
-		localStorage.setItem(key, serializeObject(value));
-	};
-	var GM_getValue = function(key, def) { 
-		var v = localStorage.getItem(key); 
-		return v==null?def:eval(v);
-	};
-	var GM_deleteValue = function(key) {
-		if(localStorage.getItem(key)!=null) localStorage.removeItem;
-	};
-}
+//... Not going to bother ...
+if(typeof localStorage == 'undefined') alert("Browser is missing required functionality for PFC Extra.");
 
 function __pfc_extra_hook() {
 	/*---------------\
@@ -131,6 +110,64 @@ function __pfc_extra_hook() {
 		}
 		return this.sendRequestReal(string,id);
 	};
+
+	var serializeObject = function(obj) {
+		if(typeof obj=='number') return ''+obj; //NaN, and infinity are not covered, but, who cares.
+		else if(typeof obj=='string') return 'unescape("'+escape(obj)+'")';
+		else if(typeof obj=='boolean') return ''+obj;
+		else if(typeof obj=='object') {
+			var proto = obj.__proto__;
+			if(proto == Array.prototype) return '['+obj.map(serializeObject).join(',')+']';
+			else { //BRUTE FORCE METHOD GO!!!
+				var text = '';
+				text = text + '(function(){var obj={}\n';
+				for(k in obj) {
+					if(k=='__proto__') throw "Type can not be stored"; //Not bothering...
+					text = text + 'obj['+serializeObject(k)+']='+serializeObject(obj[k])+'\n';
+				}
+				text = text + 'return obj})()';
+				return text;
+			}
+		} else throw "Type can not be stored";
+	};
+
+	var bind1 = function(fun, arg) {
+		return function() {
+			return fun.apply(null, [arg].concat(Array.prototype.slice.call(arguments)));
+		};
+	}
+
+	var setValue = function(key, value) {
+		key="PFC_Extra_"+key;
+		localStorage.setItem(key, serializeObject(value));
+	};
+	var getValue = function(key, def) { 
+		key="PFC_Extra_"+key;
+		var v = localStorage.getItem(key); 
+		return v==null?def:eval(v);
+	};
+	var delValue = function(key) {
+		key="PFC_Extra_"+key;
+		if(localStorage.getItem(key)!=null) localStorage.removeItem;
+	};
+
+	var config = {};
+	var keys = [
+		'autoRpConfig',
+		'enableRpColor', 'rpNames', 'rpColors',
+		'enableTextColor', 'textColor',
+		'rpEnable', 'rpRegex', 'rpRepNick', 'rpRepMsg', 'rpAutoFormat',
+		'rpmeUseNotice', 'rpmeFormat',
+		'enableSmilies',
+		'meProcess', 'meNotice',
+		'filterCode', 'commandCode'
+	];
+	for(var i=0;i<keys.length;i++) config[keys[i]] = {
+		set: bind1(setValue,keys[i]),
+		get: bind1(getValue,keys[i]),
+		del: bind1(delValue,keys[i])
+	};
+	window.config = config;
 
 	/*---------------\
 	| User Interface |
@@ -241,12 +278,7 @@ function __pfc_extra_hook() {
 					
 						this.regenHandle();
 
-						var a = ['00','01','10','11'];
-						for(var i=0;i<a.length;i++) {
-							var f = 'ARP'+a[i];
-							if(this.autoRp[a[i]]) pfc_extra['set'+f](this.autoRp[a[i]]);
-							else pfc_extra['delete'+f]();
-						}
+						config.autoRpConfig.set(this.autoRp);
 					}
 				}
 			}
@@ -279,19 +311,19 @@ function __pfc_extra_hook() {
 		fun(id);
 	};
 
-	p.newCodeArea = function(def,load,save,target) {
+	p.newCodeArea = function(def,conf,target) {
 		if(this.customCode == undefined) {
 			this.customCode = {};
 			this.customCodeFunc = {};
 			this.customCodeFuncDefault = {};
 			this.customCodeError = {};
-			this.customCodeSave = {};
+			this.customCodeConf = {};
 			this.customCodeId = 0;
 		}
 		var id = 'pfc_extra_code_frag_'+this.customCodeId;
 		this.customCodeId = this.customCodeId + 1;
 
-		this.customCodeSave[id] = save;
+		this.customCodeConf[id] = conf;
 		var f = eval('var _='+def+';_');
 		this.customCodeFunc[id] = f;
 		this.customCodeFuncDefault[id] = f;
@@ -299,7 +331,7 @@ function __pfc_extra_hook() {
 			this.customCode[id] = addElem('textarea', bid, {id: id+'_textfield'});
 			this.customCode[id].style.height = '350px';
 			this.customCode[id].style.width = '100%';
-			this.customCode[id].innerHTML = load(def);
+			this.customCode[id].innerHTML = conf.get(def);
 			this.customCodeError[id] = addElem('textarea', bid, {id: id+'_errorfield', readonly: true});
 			this.customCodeError[id].style.height = '40px';
 			this.customCodeError[id].style.width = '100%';
@@ -313,7 +345,7 @@ function __pfc_extra_hook() {
 		try {
 			this.customCodeFunc[id] = eval('var _='+this.customCode[id].value+';_').bind(this);
 			this.customCodeError[id].innerHTML = 'Successfully compiled';
-			this.customCodeSave[id](this.customCode[id].value);
+			this.customCodeConf[id].set(this.customCode[id].value);
 		} catch(e) {
 			this.customCodeFunc[id] = this.customCodeFuncDefault[id];
 			this.customCodeError[id].innerHTML = 'Error encountered:\n'+e.toString();
@@ -357,36 +389,38 @@ function __pfc_extra_hook() {
 		this.updateRPColorList();
 		addElem('button',id,{
 			type:'button',
-			onclick:'pfc_extra.setRpNamesSize(pfc_extra.getRpNamesSize()+1);'+
-				'pfc_extra.setRpColorsSize(pfc_extra.getRpColorsSize()+1);'+
+			onclick:'pfc.rpNames.push("");'+
+				'pfc.rpColors.push("");'+
+				'pfc.saveRPNick();'+
 				'pfc.updateRPNickBox();'+
 				'pfc.updateRPColorList();'
 		},'Add Entry');
 		addElem('button',id,{
 			type:'button',
-			onclick:'if(pfc_extra.getRpNamesSize()==1) { alert("Cannot remove last entry"); } else {'+
-				'pfc_extra.setRpNamesSize(pfc_extra.getRpNamesSize()-1);'+
-				'pfc_extra.setRpColorsSize(pfc_extra.getRpColorsSize()-1);'+
+			onclick:'if(pfc.rpNames.length==1) { alert("Cannot remove last entry"); } else {'+
+				'pfc.rpNames.pop();'+
+				'pfc.rpColors.pop();'+
+				'pfc.saveRPNick();'+
 				'pfc.updateRPNickBox();'+
 				'pfc.updateRPColorList();'+
 				'}'
 		},'Remove Entry');
 	};
-	p.updateRPNickBox = function() {
-		var id = 'pfc_extra_rpnames';
-
-		var c1 = pfc_extra.getRpNamesSize();
-		var c2 = pfc_extra.getRpColorsSize();
-		if(c1!=c2) {
-			var n = Math.max(c1,c2);
-			pfc_extra.setRpNamesSize(n);
-			pfc_extra.setRpColorsSize(n);
+	p.saveRPNick = function() {
+		for(var i=0;i<this.rpNameCount;i++) {
+			this.rpNames[i] = this.rpNameFields[i].value;
+			this.rpColors[i] = this.rpColorFields[i].value;
 		}
+		config.rpNames.set(this.rpNames);
+		config.rpColors.set(this.rpColors);
+	};
+	p.updateRPNickBox = function() {
+		var id = 'pfc_extra_rpnames';		
 
-		var count = pfc_extra.getRpNamesSize();
 		getElem(id).innerHTML='';
 
-		addElem('span',id,{id:'pfc_extra_rpnames_count'},count).style.display='none';
+		var count = Math.min(this.rpColors.length,this.rpNames.length);
+		this.rpNameCount = count;
 
 		var table_id = 'pfc_extra_rpnames_table';
 		addElem('table',id,{id:table_id});
@@ -397,8 +431,8 @@ function __pfc_extra_hook() {
 		addElem('td',table_row_id,{},'Name');
 		addElem('td',table_row_id,{},'Color');
 
-		this.rpColors = {};
-		this.rpNames = {};
+		this.rpNameFields = {};
+		this.rpColorFields = {};
 
 		for(var i=0;i<count;i++) {
 			var table_row_id = 'pfc_extra_rpnames_row_'+i;
@@ -407,28 +441,27 @@ function __pfc_extra_hook() {
 			var table_cell_id = 'pfc_extra_rpnames_cell0_'+i;
 			var table_input_id = 'pfc_extra_rpnames_name_'+i;
 			addElem('td',table_row_id,{id:table_cell_id});
-			(this.rpNames[i] = addElem('input',table_cell_id,{
+			(this.rpNameFields[i] = addElem('input',table_cell_id,{
 				id: table_input_id,
-				onchange: 'pfc_extra.setRpNames('+i+',pfc.rpNames['+i+'].value);pfc.updateRPColorList();',
-				value: pfc_extra.getRpNames(i,'')
+				onchange: 'pfc.saveRPNick();pfc.updateRPColorList();',
+				value: this.rpNames[i]
 			})).style.width='100%';
-			this.rpNames[i].readOnly=!this.nickColor.checked;
+			this.rpNameFields[i].readOnly=!this.nickColor.checked;
 
 			var table_cell_id = 'pfc_extra_rpnames_cell1_'+i;
 			var table_input_id = 'pfc_extra_rpnames_color_'+i;
 			addElem('td',table_row_id,{id:table_cell_id});
-			(this.rpColors[i] = addElem('input',table_cell_id,{
+			(this.rpColorFields[i] = addElem('input',table_cell_id,{
 				id: table_input_id,
-				onchange: 'pfc_extra.setRpColors('+i+',pfc.rpColors['+i+'].value);pfc.updateRPColorList();',
-				value: pfc_extra.getRpColors(i,'')
+				onchange: 'pfc.saveRPNick();pfc.updateRPColorList();',
+				value: this.rpColors[i]
 			})).style.width='100%';
-			this.rpColors[i].readOnly=!this.nickColor.checked;
+			this.rpColorFields[i].readOnly=!this.nickColor.checked;
 		}
 	};
 	p.updateRPColorList = function() {
 		this.rpColor = {};
-		var l = getElem('pfc_extra_rpnames_count').innerHTML;
-		for(var i=0;i<l;i++)
+		for(var i=0;i<this.rpNames.length;i++)
 			this.rpColor[this.rpNames[i].value]=this.rpColors[i].value;
 	}
 
@@ -436,11 +469,11 @@ function __pfc_extra_hook() {
 		debugprint("Init");
 
 		this.el_handle.style.fontWeight = 'normal';
-		this.autoRp = {};
-		this.autoRp['00'] = pfc_extra.getARP00(undefined);
-		this.autoRp['01'] = pfc_extra.getARP01(undefined);
-		this.autoRp['10'] = pfc_extra.getARP10(undefined);
-		this.autoRp['11'] = pfc_extra.getARP11(undefined);
+
+		this.autoRp = config.autoRpConfig.get({});
+
+		this.rpColors = config.rpColors.get(['']);
+		this.rpNames = config.rpNames.get(['']);
 
 		removeElem('pfc_bt_color_btn');
 		this.newToggleBox(function(id) {
@@ -448,18 +481,18 @@ function __pfc_extra_hook() {
 				addElem('span',id,{},'Enable Text Color: ');
 				this.useColor = addElem('input', id, {
 					type: 'checkbox',
-					onchange: 'pfc_extra.setUseColor(pfc.useColor.checked);'+
+					onchange: 'config.enableTextColor.set(pfc.useColor.checked);'+
 						  'pfc.color.readOnly=!pfc.useColor.checked;'
 				});
-				this.useColor.checked = pfc_extra.getUseColor(true);
+				this.useColor.checked = config.enableTextColor.get(true);
 
 				addElem('br',id);
 
 				addElem('span',id,{},'Color: ');
 				this.color = addElem('input', id, {
 					type: 'text',
-					value: pfc_extra.getColor(initColor),
-					onchange: 'pfc_extra.setColor(pfc.color.value);'
+					value: config.textColor.get(initColor),
+					onchange: 'config.textColor.set(pfc.color.value);'
 				});
 				this.color.readOnly=!this.useColor.checked;
 			}, id, 'Text Color');
@@ -467,21 +500,21 @@ function __pfc_extra_hook() {
 				addElem('span',id,{},'Enable RP Mode: ');
 				this.enableRP = addElem('input', id, {
 					type: 'checkbox',
-					onchange: 'pfc_extra.setEnableRp(pfc.enableRP.checked);'+
+					onchange: 'config.rpEnable.set(pfc.enableRP.checked);'+
 						  'pfc.rpRegex.readOnly=!pfc.enableRP.checked;'+
 						  'pfc.rpRepNick.readOnly=!pfc.enableRP.checked;'+
 						  'pfc.rpRepMsg.readOnly=!pfc.enableRP.checked;'+
 						  'pfc.rpAutoFormat.readOnly=!pfc.enableRP.checked;'
 				});
-				this.enableRP.checked = pfc_extra.getEnableRp(false);
+				this.enableRP.checked = config.rpEnable.get(false);
 
 				addElem('br',id);
 
 				addElem('span',id,{},'RP Matching Regex: ');
 				this.rpRegex = addElem('input', id, {
 					type: 'text',
-					value: pfc_extra.getRpRegex('^(([^ ]+): .*)$'),
-					onchange: 'pfc_extra.setRpRegex(pfc.rpRegex.value);'
+					value: config.rpRegex.get('^(([^ ]+): .*)$'),
+					onchange: 'config.rpRegex.set(pfc.rpRegex.value);'
 				});
 				this.rpRegex.readOnly=!this.enableRP.checked;
 
@@ -490,8 +523,8 @@ function __pfc_extra_hook() {
 				addElem('span',id,{},'RP Nick Replace String: ');
 				this.rpRepNick = addElem('input', id, {
 					type: 'text',
-					value: pfc_extra.getRpRepNick('$2'),
-					onchange: 'pfc_extra.setRpRepNick(pfc.rpRepNick.value);'
+					value: config.rpRepNick.get('$2'),
+					onchange: 'config.rpRepNick.set(pfc.rpRepNick.value);'
 				});
 				this.rpRepNick.readOnly=!this.enableRP.checked;
 
@@ -501,8 +534,8 @@ function __pfc_extra_hook() {
 				addElem('span',id,{},'RP Message Replace String: ');
 				this.rpRepMsg = addElem('input', id, {
 					type: 'text',
-					value: pfc_extra.getRpRepMsg('$1'),
-					onchange: 'pfc_extra.setRpRepMsg(pfc.rpRepMsg.value);'
+					value: config.rpRepMsg.get('$1'),
+					onchange: 'config.rpRepMsg.set(pfc.rpRepMsg.value);'
 				});
 				this.rpRepMsg.readOnly=!this.enableRP.checked;
 
@@ -511,8 +544,8 @@ function __pfc_extra_hook() {
 				addElem('span',id,{},'Auto RP Format String: ');
 				this.rpAutoFormat = addElem('input', id, {
 					type: 'text',
-					value: pfc_extra.getRpAutoFormat('%s: %s'),
-					onchange: 'pfc_extra.setRpAutoFormat(pfc.rpAutoFormat.value);'
+					value: config.rpAutoFormat.get('%s: %s'),
+					onchange: 'config.rpAutoFormat.set(pfc.rpAutoFormat.value);'
 				});
 				this.rpAutoFormat.readOnly=!this.enableRP.checked;
 
@@ -521,18 +554,18 @@ function __pfc_extra_hook() {
 				addElem('span',id,{},'Use notice for /rpme: ');
 				this.rpmeNotice = addElem('input', id, {
 					type: 'checkbox',
-					onchange: 'pfc_extra.setRpmeNotice(pfc.rpmeNotice.checked);'+
+					onchange: 'config.rpmeUseNotice.set(pfc.rpmeNotice.checked);'+
 						  'pfc.rpmeFormat.readOnly=pfc.rpmeNotice.checked;'
 				});
-				this.rpmeNotice.checked = pfc_extra.getRpmeNotice(false);
+				this.rpmeNotice.checked = config.rpmeUseNotice.get(false);
 
 				addElem('br',id);
 
 				addElem('span',id,{},'/rpme format: ');
 				this.rpmeFormat = addElem('input', id, {
 					type: 'text',
-					value: pfc_extra.getRpmeFormat('[i]%s %s[/i]'),
-					onchange: 'pfc_extra.setRpmeFormat(pfc.rpmeFormat.value);'
+					value: config.rpmeFormat.get('[i]%s %s[/i]'),
+					onchange: 'config.rpmeUseFormat.set(pfc.rpmeFormat.value);'
 				});
 				this.rpmeFormat.readOnly=this.rpmeNotice.checked;
 			}, id, 'RP Settings');
@@ -540,10 +573,10 @@ function __pfc_extra_hook() {
 				addElem('span',id,{},'Enable Per-Nick Color: ');
 				this.nickColor = addElem('input', id, {
 					type: 'checkbox',
-					onchange: 'pfc_extra.setNickColor(pfc.nickColor.checked);'+
+					onchange: 'config.enableRpColor.set(pfc.nickColor.checked);'+
 						  'pfc.updateRPNickBox();'
 				});
-				this.nickColor.checked = pfc_extra.getNickColor(true);
+				this.nickColor.checked = config.enableRpColor.get(true);
 
 				addElem('hr',id);
 				this.setupRPNickBox(id);
@@ -552,39 +585,39 @@ function __pfc_extra_hook() {
 				addElem('span',id,{},'Send Smilies: ');
 				this.useSmilies = addElem('input', id, {
 					type: 'checkbox',
-					onchange: 'pfc_extra.setUseSmilies(pfc.useSmilies.checked);'
+					onchange: 'config.enableSmilies.set(pfc.useSmilies.checked);'
 				});
-				this.useSmilies.checked = pfc_extra.getUseSmilies(true);
+				this.useSmilies.checked = config.enableSmilies.get(true);
 
 				addElem('br',id);
 
 				addElem('span',id,{},'Process /me: ');
 				this.meProcess = addElem('input', id, {
 					type: 'checkbox',
-					onchange: 'pfc_extra.setMeProcess(pfc.meProcess.checked);'
+					onchange: 'config.meProcess.set(pfc.meProcess.checked);'
 				});
-				this.meProcess.checked = pfc_extra.getMeProcess(false);
+				this.meProcess.checked = config.meProcess.get(false);
 
 				addElem('br',id);
 
 				addElem('span',id,{},'Use /notice for /me: ');
 				this.meNotice = addElem('input', id, {
 					type: 'checkbox',
-					onchange: 'pfc_extra.setMeNotice(pfc.meNotice.checked);'
+					onchange: 'config.meNotice.set(pfc.meNotice.checked);'
 				});
-				this.meNotice.checked = pfc_extra.getMeNotice(false);
+				this.meNotice.checked = config.meNotice.get(false);
 			}, id, 'Text Options');
 
 			this.newToggleBox(function(id) {
 				addElem('span',id,{},'Custom filter code: ');
-				this.addProcess = this.newCodeArea('function(text,nick){\n\treturn text;\n}', pfc_extra.getTextCode, pfc_extra.setTextCode, id);
+				this.addProcess = this.newCodeArea('function(text,nick){\n\treturn text;\n}', config.filterCode, id);
 
 				addElem('span',id,{},'Custom command handler: ');
 				this.addCommand = this.newCodeArea(
 					'function(cmd,param,nick){'+
 					'\n\tif(cmd=="/hello") {\n\t\tthis.displayMsg("","Hello, world!");\n\t\treturn true;\n\t}'+
 					'\n\treturn false;\n}', 
-				pfc_extra.getCommandCode, pfc_extra.setCommandCode, id);
+				config.commandCode, id);
 			}, id, 'Custom Hooks');
 
 			addElem('hr',id,{});
@@ -855,104 +888,6 @@ function __pfc_extra_hook() {
 
 	debugprint('PFC Extra loaded');
 }
-
-var t = {};
-var re_cleanName = new RegExp('[^a-zA-Z0-9_]','g');
-var contains = function(arr,obj) {
-    var i = arr.length;
-    while (i--) if (arr[i] === obj) return true;
-    return false;
-}
-
-var addPersist = function(n) {
-	var f="_"+window.location.hostname.replace(re_cleanName,"_")+"$"+n;
-	//var f = n;
-	var hasValue = GM_getValue(f,1)==GM_getValue(f,2);
-	var value = GM_getValue(f);
-	t["set"+n]=function(v) {
-		setTimeout(function() {
-			GM_setValue(f,v);
-		},0);
-		value = v;
-		hasValue = true;
-	};
-	t["get"+n]=function(v) {
-		return hasValue?value:v;
-	};
-	t["delete"+n]=function() {
-		setTimeout(function() {
-			GM_deleteValue(f);
-		},0);
-		value = undefined;
-		hasValue = false;
-	};
-};
-var addPersistArray = function(n,s) {
-	var f="_"+window.location.hostname.replace(re_cleanName,"_")+"$Array$"+n+"$";
-	var values = {};
-	var hasValue = {};
-	var size = GM_getValue(f+"size",s);
-	for (var i=0;i<size;i++) {
-		var value = GM_getValue(f+i);
-		if(value!=undefined) {
-			values[i]=value;
-			hasValue[i]=true;
-		}
-	}
-	t["set"+n]=function(n,v) {
-		if(n>=size || n<0) throw "Invalid array index";
-		setTimeout(function() {
-			GM_setValue(f+n,v);
-		},0);
-		values[n]=v;
-		hasValue[n]=v;
-	};
-	t["get"+n]=function(n,v) {
-		if(n>=size || n<0) throw "Invalid array index";
-		return hasValue[n]?values[n]:v;
-	};
-	t["set"+n+"Size"]=function(s) {
-		if(s<size) for(var i=s;i<size;i++) {
-			setTimeout(function() {
-				GM_deleteValue(f+i);
-			},0);
-			delete values[i];
-			delete hasValue[i];
-		}
-		setTimeout(function() {
-			GM_setValue(f+"size",s);
-		},0);
-		size = s;
-	};
-	t["get"+n+"Size"]=function() {
-		return size;
-	};
-};
-addPersist("UseColor");
-addPersist("Color");
-addPersist("MeProcess");
-addPersist("MeNotice");
-addPersist("UseSmilies");
-addPersist("TextCode");
-addPersist("CommandCode");
-addPersist("NickColor");
-
-addPersist("EnableRp");
-addPersist("RpRegex");
-addPersist("RpRepNick");
-addPersist("RpRepMsg");
-addPersist("RpAutoFormat");
-addPersist("RpmeNotice");
-addPersist("RpmeFormat");
-
-addPersist("ARP00");
-addPersist("ARP10");
-addPersist("ARP01");
-addPersist("ARP11");
-
-addPersistArray("RpNames",10);
-addPersistArray("RpColors",10);
-unsafeWindow.pfc_extra = t;
 
 var loadScript = function(script,elem) {	
 	var s = document.createElement('script');
