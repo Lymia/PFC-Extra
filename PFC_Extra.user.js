@@ -201,7 +201,7 @@ function __pfc_extra_hook() {
 			}
 		}
 		for(n in this.smileyReplace) {
-			string = string.replace(n,this.smileyReplace[n]);
+			while(string != (string = string.replace(n,this.smileyReplace[n])));
 		}
 		return string;
 	};
@@ -471,7 +471,7 @@ function __pfc_extra_hook() {
 		addElem('span',id,{},label+': ');
 		this[boxName] = addElem('input', id, {
 			type: 'checkbox',
-			onchange: 'config.'+configName+'.set(pfc.useColor.checked);'+
+			onchange: 'config.'+configName+'.set(pfc.'+boxName+'.checked);'+
 				  disables.map(function(f){return 'pfc.'+f+'.readOnly=!pfc.'+boxName+'.checked'}).join(';')+';'+
 			          custom
 		});
