@@ -4,7 +4,7 @@
 // @author         Lymia <lymiahugs@gmail.com>
 // @description    Modifies PHPFreeChat's client to add in some additional functionality
 // @license        Public Domain
-// @version        1.2.2
+// @version        1.2.3
 // @run-at         document-end
 // @include        *
 // ==/UserScript==
@@ -27,6 +27,8 @@ Changelog:
 		* Minor compatibility improvements.
 	v1.2.2:
 		* PFC Extra now works on Chrome.
+	v1.2.3:
+		* Changed persistant data storage format, should be more cross-browser now.
 */
 
 if(typeof unsafeWindow == 'undefined' ||
