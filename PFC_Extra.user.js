@@ -227,9 +227,21 @@ function __pfc_extra_hook() {
 			this.displayMsg('','Custom command processor returned error: <br/>'+e.toString());
 			return false;
 		}
+
+		var possessive = false;
+		if(cmd=='/me\'s') {
+			possessive = true;
+			cmd = '/me';
+		}
+		if(cmd=='/rpme\'s') {
+			possessive = true;
+			cmd = '/rpme';
+		}
+
 		if(cmd=='/me'&&nick==this.nickname) {
 			var cmd = this.meNotice.checked?'/notice ':'/me ';
-			var nstr = nick+' ';
+			var nstr = nick+(possessive?'\'s':'')+' ';
+			if(possessive && !this.meNotice.checked) param = '\'s '+param;
 			if(this.meProcess.checked) param = this.process(param,nick,this.meNotice.checked?nstr:'');
 
 			this.sendRequest(cmd+param);
@@ -244,9 +256,9 @@ function __pfc_extra_hook() {
 				var msg = param.replace(re_rpMe,'$3');
 
 				if(this.rpmeNotice.checked) {
-					this.sendRequest('/notice '+this.process(msg,nick,'['+this.nickname+'] '+nick+' '));
+					this.sendRequest('/notice '+this.process(msg,nick,'['+this.nickname+'] '+nick+(possessive?'\'s':'')+' '));
 				} else {
-					this.sendRequest('/send '+this.process(sprintf(this.rpmeFormat.value,nick,msg),nick));
+					this.sendRequest('/send '+this.process(sprintf(this.rpmeFormat.value,nick+(possessive?'\'s':''),msg),nick));
 				}
 			}
 			return false;
@@ -362,7 +374,7 @@ function __pfc_extra_hook() {
 	};
 
 	var re_removeSpaces = new RegExp('^[ ]*$','g');
-	var re_commandProcess = new RegExp('^(\/[a-zA-Z0-9]+)( (.*)|)');
+	var re_commandProcess = new RegExp('^(\/[a-zA-Z0-9\']+)( (.*)|)');
 	p.callbackWords_OnKeypress = function(evt) {
 		var code = (evt.which) ? evt.which : evt.keyCode;
 		if (code == Event.KEY_RETURN) {			
