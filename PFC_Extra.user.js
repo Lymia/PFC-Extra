@@ -638,7 +638,7 @@ function __pfc_extra_hook() {
 	};
 
 	p.loadChat = function() {
-		new this.getRequestClass()(pfc_server_script_url, {
+		new Ajax.Request(pfc_server_script_url, {
 			method: 'get',
 			parameters: {pfc_ajax: 1, f: 'loadChat'},
 			onSuccess: function(transport) {
@@ -677,12 +677,6 @@ function __pfc_extra_hook() {
 		this.handleResponsePost(cmd, resp, param); 
 		return ret;
 	};
-
-	p.getRequestClass = function() {
-		//Joomla does SOMETHING weird...
-		if(typeof Ajax == "undefined") return Request;
-		else return Ajax.Request;
-	}
 
 	p.doSendMessage = function(nick,msg,w) {
 		var wval = undefined;
@@ -742,7 +736,7 @@ function __pfc_extra_hook() {
 		cmd = cmd.replace(rx, '$1 '+this.clientid+' '+(recipientid==''?'0':recipientid)+' $2');
 
 		var url = pfc_server_script_url;
-		new this.getRequestClass()(url, {
+		new Ajax.Request(url, {
 			method: 'post',
 			parameters: {'pfc_ajax':1, 'f':'handleRequest', 'cmd': cmd },
 			onCreate: function(transport) {
@@ -841,5 +835,28 @@ var loadText = function(func,elem) {
 
 loadScript('http://www.strictly-software.com/scripts/downloads/encoder.js',document.head);
 loadScript('https://dl.dropbox.com/u/49064620/sprintf-0.6.js',document.head);
+if(typeof unsafeWindow.Ajax.Request == "undefined") { //Hack for a certain CMS's plugin
+	function __pfc_extra_fakeAjax() {
+		window.Ajax.Request = function(url,params){
+			var onSuccess = params["onSuccess"]==undefined ? function(transport){} : params.onSuccess;
+			params.onSuccess = function(responseText) {
+				onSuccess({
+					responseText: responseText,
+					status: 200
+				});
+			}
 
+			params.url = url;
+			var string = "";
+			if(params["parameters"]) {
+				for(k in params.parameters) {
+					string = string + encodeURIComponent(k)+'='+encodeURIComponent(params.parameters[k])+"&";
+				}
+				delete params.parameters;
+			}
+			return new Request(params).send(string);
+		}
+	}
+	loadText(__pfc_extra_fakeAjax.toString()+'\n\n'+'__pfc_extra_fakeAjax()',document.body);
+}
 loadText(__pfc_extra_hook.toString()+'\n\n'+'__pfc_extra_hook();',document.body);
