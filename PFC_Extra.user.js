@@ -638,7 +638,7 @@ function __pfc_extra_hook() {
 	};
 
 	p.loadChat = function() {
-		new Ajax.Request(pfc_server_script_url, {
+		new this.getRequestClass()(pfc_server_script_url, {
 			method: 'get',
 			parameters: {pfc_ajax: 1, f: 'loadChat'},
 			onSuccess: function(transport) {
@@ -677,6 +677,12 @@ function __pfc_extra_hook() {
 		this.handleResponsePost(cmd, resp, param); 
 		return ret;
 	};
+
+	p.getRequestClass = function() {
+		//Joomla does SOMETHING weird...
+		if(typeof Ajax == "undefined") return Request;
+		else return Ajax.Request;
+	}
 
 	p.doSendMessage = function(nick,msg,w) {
 		var wval = undefined;
@@ -736,7 +742,7 @@ function __pfc_extra_hook() {
 		cmd = cmd.replace(rx, '$1 '+this.clientid+' '+(recipientid==''?'0':recipientid)+' $2');
 
 		var url = pfc_server_script_url;
-		new Ajax.Request(url, {
+		new this.getRequestClass()(url, {
 			method: 'post',
 			parameters: {'pfc_ajax':1, 'f':'handleRequest', 'cmd': cmd },
 			onCreate: function(transport) {
