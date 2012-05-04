@@ -41,9 +41,7 @@ if(typeof unsafeWindow == 'undefined' ||
 	unsafeWindow = div.onclick();
 }
 
-if((!unsafeWindow.pfcClient) ||
-   (!document.getElementById('pfc_loader')) ||
-   (!document.getElementById('pfc_container'))) return;
+if(!unsafeWindow.pfcClient) return;
 
 //... Not going to bother ...
 if(typeof localStorage == 'undefined') alert("Browser is missing required functionality for PFC Extra.");
@@ -858,5 +856,7 @@ if(typeof unsafeWindow.Ajax.Request == "undefined") { //Hack for a certain CMS's
 		}
 	}
 	loadText(__pfc_extra_fakeAjax.toString()+'\n\n'+'__pfc_extra_fakeAjax()',document.body);
+	loadText(__pfc_extra_hook.toString()+'\n\n'+'__pfc_extra_hook();',document.body);
+} else {
+	loadText(__pfc_extra_hook.toString()+'\n\n'+'__pfc_extra_hook();',document.body);
 }
-loadText(__pfc_extra_hook.toString()+'\n\n'+'__pfc_extra_hook();',document.body);
