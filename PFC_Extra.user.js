@@ -171,6 +171,24 @@ function __pfc_extra_hook() {
 	| User Interface |
 	\---------------*/
 
+	var fullScreen = null;
+	p.toggleFullScreen = function() {
+		var elem = getElem('pfc_container');
+		if(fullScreen!=null) {
+			document.body.innerHTML=fullScreen;
+			fullScreen=null;
+
+			var orig = getElem('pfc_container');
+			var parent = orig.parentNode;
+			parent.removeChild(orig);
+			parent.appendChild(elem);
+		} else {
+			fullScreen=document.body.innerHTML;
+			document.body.innerHTML="";
+			document.body.appendChild(elem);
+		}
+	}
+
 	var initColor = '#000000';
 	var zws = '\u2060';
 	var loading = getElem('pfc_loader').innerHTML;
@@ -570,6 +588,12 @@ function __pfc_extra_hook() {
 			addElem('a',id,{
 				onclick: 'pfc.resetChat(true);'
 			},'Disable PFC Extra');
+
+			addElem('br',id,{});
+
+			addElem('a',id,{
+				onclick: 'pfc.toggleFullScreen();'
+			},'Toggle Fullscreen');
 		}, 'pfc_bbcode_container', 'Options', 'pfc_input_container');
 		addElem('div','pfc_input_container').style.height='3px';
 
